@@ -27,13 +27,17 @@ class PCSV
     # Open CSV & build a worker queue.
     csv = CSV.read(path, options)
     queue = []
+    headers = nil
     csv.each_with_index do |row, row_index|
+      headers ||= csv.headers
+      
       row.fields.each_with_index do |field, col_index|
         queue << {
           row_index:row_index,
           col_index:col_index,
           row:row,
-          value:field
+          value:field,
+          header:(!headers.nil? ? headers[col_index] : nil)
         }
       end
     end
@@ -68,7 +72,11 @@ class PCSV
       end
     end
 
-    threads.each { |t| t.join }
+    begin
+      threads.each { |t| t.join }
+    rescue SystemExit, Interrupt
+      threads.each { |thread| thread.kill }
+    end
     
     return csv
   end
