@@ -22,7 +22,9 @@ class PCSV
 
   # Performs a given action on each cell of a CSV file.
   def self.process(action, path, options={})
+    options[:headers] = true
     thread_count = options.delete(:thread_count) || 10
+    if_proc = options.delete(:if)
 
     # Open CSV & build a worker queue.
     csv = CSV.read(path, options)
@@ -32,13 +34,14 @@ class PCSV
       headers ||= csv.headers
       
       row.fields.each_with_index do |field, col_index|
-        queue << {
+        item = {
+          row:row,
           row_index:row_index,
           col_index:col_index,
-          row:row,
-          value:field,
-          header:(!headers.nil? ? headers[col_index] : nil)
+          value:field.to_s,
+          header:headers[col_index]
         }
+        queue << item
       end
     end
     
@@ -57,6 +60,7 @@ class PCSV
         
           # Invoke the block with the row info.
           begin
+            next if if_proc.nil? || !if_proc.call(item)
             result = yield item, mutex
           
             if action == :map
