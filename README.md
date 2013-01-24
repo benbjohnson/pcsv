@@ -1,4 +1,4 @@
 pcsv
-====
+===
 
-A simple, parallel processing framework for CSV files.
+A command line utility for working with data in Excel.
