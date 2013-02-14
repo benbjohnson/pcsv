@@ -25,6 +25,9 @@ class PCSV
     options[:headers] = true
     thread_count = options.delete(:thread_count) || 10
     if_proc = options.delete(:if)
+    on_count_proc = options.delete(:on_count)
+    progress_bar_visible = options.has_key?(:progress_bar) ? options.delete(:progress_bar) : true
+    progress_bar = nil
 
     # Open CSV & build a worker queue.
     csv = CSV.read(path, options)
@@ -41,9 +44,12 @@ class PCSV
           value:field.to_s,
           header:headers[col_index]
         }
+        next if if_proc.nil? || !if_proc.call(item)
         queue << item
       end
     end
+    progress_bar = ::ProgressBar.create(:total => queue.length, :format => '%a |%B| %E %P%%') if progress_bar_visible
+    on_count_proc.call(queue.length) unless on_count_proc.nil?
     
     # Launch threads and iterate over queue until it's done.
     mutex = Mutex.new()
@@ -60,7 +66,6 @@ class PCSV
         
           # Invoke the block with the row info.
           begin
-            next if if_proc.nil? || !if_proc.call(item)
             result = yield item, mutex
           
             if action == :map
@@ -69,7 +74,10 @@ class PCSV
               }
             end
 
+            mutex.synchronize { progress_bar.increment } unless progress_bar.nil?
+
           rescue StandardError => e
+            mutex.synchronize { progress_bar.clear } unless progress_bar.nil?
             warn("[ERROR] #{e.message} [R#{item[:row_index]},C#{item[:col_index]}]")
           end
         end
